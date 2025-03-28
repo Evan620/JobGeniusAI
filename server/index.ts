@@ -4,6 +4,7 @@ import passport from "passport";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { setupAuth } from "./lib/auth";
+import { storage, createDbTables } from "./storage";
 import dotenv from "dotenv";
 
 // Load environment variables from .env file
@@ -13,26 +14,25 @@ dotenv.config();
 process.env.AZURE_OPENAI_BASE_URL = process.env.AZURE_OPENAI_BASE_URL || "https://models.inference.ai.azure.com";
 process.env.AZURE_OPENAI_MODEL_NAME = process.env.AZURE_OPENAI_MODEL_NAME || "gpt-4o";
 
+// Initialize Express app
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Set up session
+// Set up session with persistent storage
 app.use(session({
+  store: storage.sessionStore,
   secret: process.env.SESSION_SECRET || 'your-secret-key',
   resave: false,
   saveUninitialized: false,
   cookie: {
+    secure: process.env.NODE_ENV === 'production',
     maxAge: 24 * 60 * 60 * 1000 // 24 hours
   }
 }));
 
-// Initialize Passport and session
-app.use(passport.initialize());
-app.use(passport.session());
-
-// Set up authentication strategies
-setupAuth();
+// Set up authentication
+setupAuth(app); // Pass the app instance to setupAuth
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -65,6 +65,9 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Initialize database tables if needed
+  await createDbTables();
+  
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -72,7 +75,7 @@ app.use((req, res, next) => {
     const message = err.message || "Internal Server Error";
 
     res.status(status).json({ message });
-    throw err;
+    console.error(err);
   });
 
   // importantly only setup vite in development and after
