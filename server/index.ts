@@ -2,6 +2,10 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
+// Configure Azure OpenAI settings
+process.env.AZURE_OPENAI_BASE_URL = process.env.AZURE_OPENAI_BASE_URL || "https://models.inference.ai.azure.com";
+process.env.AZURE_OPENAI_MODEL_NAME = process.env.AZURE_OPENAI_MODEL_NAME || "gpt-4o";
+
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));

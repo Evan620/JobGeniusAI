@@ -9,7 +9,7 @@ import { ApplicationCard } from "@/components/dashboard/application-card";
 import { AIAssistant } from "@/components/dashboard/ai-assistant";
 import { SkillsGap } from "@/components/dashboard/skills-gap";
 import { Button } from "@/components/ui/button";
-import { Search, PaperPlane, Calendar, TrendingUp, BarChart2 } from "lucide-react";
+import { Search, Send, Calendar, TrendingUp, BarChart2 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -146,7 +146,7 @@ export default function Dashboard() {
                   <StatsCard 
                     title="Applied" 
                     value={stats.applied} 
-                    icon={PaperPlane} 
+                    icon={Send} 
                     iconColor="text-[#FFD700]" 
                     iconBgColor="bg-[#FFD700]" 
                   />

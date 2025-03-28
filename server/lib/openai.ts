@@ -1,8 +1,13 @@
 import OpenAI from "openai";
 import { Job, Skill } from "@shared/schema";
 
-// the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "dummy-key-for-development" });
+// Using Azure OpenAI configuration
+const openai = new OpenAI({
+  apiKey: process.env.AZURE_OPENAI_API_KEY || "dummy-key-for-development",
+  baseURL: process.env.AZURE_OPENAI_BASE_URL || "https://models.inference.ai.azure.com",
+  defaultQuery: { "api-version": "2023-05-15" },
+  defaultHeaders: { "api-key": process.env.AZURE_OPENAI_API_KEY },
+});
 
 export interface JobMatch {
   job: Job;
@@ -137,29 +142,76 @@ export async function processAiChatMessage(
       return "Please enter a message to continue.";
     }
     
-    // In a real implementation, this would call the OpenAI API with proper context
-    // For development purposes, we'll return predefined responses
+    // Prepare messages for the OpenAI chat API with proper types
+    const systemPrompt = {
+      role: "system" as const,
+      content: `You are JobGenius AI, an AI assistant for job seekers. 
+      Your capabilities include:
+      - Finding relevant job opportunities
+      - Optimizing resumes and cover letters for specific positions
+      - Preparing for job interviews
+      - Analyzing skills gaps and suggesting improvements
+      - Providing career advice and industry insights
+      
+      Be helpful, encouraging, and professional in your responses.
+      Focus on providing actionable advice for job seekers.`
+    };
     
-    const messageLower = message.toLowerCase();
+    const formattedPreviousMessages = previousMessages.map(msg => ({
+      role: msg.role === 'user' ? 'user' as const : 'assistant' as const,
+      content: msg.content
+    }));
     
-    if (messageLower.includes("help") || messageLower.includes("how")) {
-      return "I can help you with your job search by finding relevant positions, optimizing your resume, and preparing for interviews. What specifically would you like help with?";
+    // Add the user's new message
+    const chatMessages = [
+      systemPrompt,
+      ...formattedPreviousMessages,
+      { role: "user" as const, content: message }
+    ];
+    
+    // Call the Azure OpenAI API using the configured client
+    try {
+      const modelName = process.env.AZURE_OPENAI_MODEL_NAME || "gpt-4o";
+      
+      // Use the correct types for OpenAI API
+      type OpenAIMessage = {
+        role: 'system' | 'user' | 'assistant';
+        content: string;
+      };
+      
+      const response = await openai.chat.completions.create({
+        model: modelName,
+        messages: chatMessages as OpenAIMessage[],
+        temperature: 0.7,
+        max_tokens: 800
+      });
+      
+      return response.choices[0].message.content || "I'm not sure how to respond to that. Could you try asking in a different way?";
+    } catch (apiError) {
+      console.error("Azure OpenAI API error:", apiError);
+      
+      // Fallback responses if API call fails
+      const messageLower = message.toLowerCase();
+      
+      if (messageLower.includes("help") || messageLower.includes("how")) {
+        return "I can help you with your job search by finding relevant positions, optimizing your resume, and preparing for interviews. What specifically would you like help with?";
+      }
+      
+      if (messageLower.includes("resume") || messageLower.includes("cv")) {
+        return "I can optimize your resume for specific job applications. Would you like me to analyze your current resume and suggest improvements?";
+      }
+      
+      if (messageLower.includes("interview")) {
+        return "I can help you prepare for interviews by providing common questions and suggested answers based on your experience. Would you like to start interview preparation?";
+      }
+      
+      if (messageLower.includes("job") || messageLower.includes("search")) {
+        return "I found several new job postings that match your profile. Would you like me to prepare applications for these positions?";
+      }
+      
+      // Default fallback response
+      return "I'm here to help with your job search. I can find relevant jobs, optimize your resume, or help prepare for interviews. What would you like assistance with?";
     }
-    
-    if (messageLower.includes("resume") || messageLower.includes("cv")) {
-      return "I can optimize your resume for specific job applications. Would you like me to analyze your current resume and suggest improvements?";
-    }
-    
-    if (messageLower.includes("interview")) {
-      return "I can help you prepare for interviews by providing common questions and suggested answers based on your experience. Would you like to start interview preparation?";
-    }
-    
-    if (messageLower.includes("job") || messageLower.includes("search")) {
-      return "I found several new job postings that match your profile. Would you like me to prepare applications for these positions?";
-    }
-    
-    // Default response
-    return "I'm here to help with your job search. I can find relevant jobs, optimize your resume, or help prepare for interviews. What would you like assistance with?";
   } catch (error) {
     console.error("Error processing AI chat message:", error);
     return "I'm having trouble processing your request right now. Please try again later.";
