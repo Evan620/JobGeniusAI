@@ -21,9 +21,9 @@ interface JobCardProps {
 }
 
 export function JobCard({ 
-  job, 
-  matchScore, 
-  matchReasons, 
+  job = {}, 
+  matchScore = 0, 
+  matchReasons = [], 
   onSwipe,
   style,
   zIndex = 1
@@ -39,6 +39,17 @@ export function JobCard({
       setApplying(true);
       
       try {
+        // Make sure we have a job ID
+        if (!job.id) {
+          toast({
+            title: "Cannot Apply",
+            description: "This job doesn't have a valid ID",
+            variant: "destructive"
+          });
+          setApplying(false);
+          return;
+        }
+        
         // Create application for this job
         const application: InsertApplication = {
           userId: 1, // Would get from auth context
@@ -55,7 +66,7 @@ export function JobCard({
         toast({
           title: "Application Started!",
           description: "AI is preparing your customized resume",
-          variant: "success"
+          variant: "default"
         });
       } catch (error) {
         toast({
@@ -105,21 +116,21 @@ export function JobCard({
             <div className="absolute top-4 left-4 flex items-center">
               <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center">
                 <span className="font-heading font-bold text-xl text-[#2D3E50]">
-                  {job.company.substring(0, 2).toUpperCase()}
+                  {(job.company || 'CO').substring(0, 2).toUpperCase()}
                 </span>
               </div>
               <div className="ml-3 text-white">
-                <p className="font-medium">{job.company}</p>
-                <p className="text-xs opacity-80">{job.location}</p>
+                <p className="font-medium">{job.company || 'Company'}</p>
+                <p className="text-xs opacity-80">{job.location || 'Location'}</p>
               </div>
             </div>
           </div>
           
           <CardContent className="p-4">
             <div className="flex justify-between items-center mb-3">
-              <h3 className="font-heading font-bold text-[#2D3E50]">{job.title}</h3>
+              <h3 className="font-heading font-bold text-[#2D3E50]">{job.title || 'Job Title'}</h3>
               <Badge variant="outline" className={job.jobType === 'Remote' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}>
-                {job.jobType}
+                {job.jobType || 'Full-time'}
               </Badge>
             </div>
             
@@ -131,20 +142,25 @@ export function JobCard({
             
             <div className="mb-4">
               <h4 className="font-medium text-[#2D3E50] mb-2">AI Insights:</h4>
-              <p className="text-sm text-gray-600">{matchReasons[0]}</p>
+              <p className="text-sm text-gray-600">{matchReasons[0] || 'Great match for your skills'}</p>
             </div>
             
             <div className="flex flex-wrap gap-2 mb-4">
-              {job.skills?.map((skill, index) => (
-                <Badge key={index} variant="outline" className="bg-[#4AC1BD] bg-opacity-10 text-[#4AC1BD]">
-                  {skill}
+              {Array.isArray(job.skills) && job.skills.length > 0 ? 
+                job.skills.map((skill, index) => (
+                  <Badge key={index} variant="outline" className="bg-[#4AC1BD] bg-opacity-10 text-[#4AC1BD]">
+                    {skill}
+                  </Badge>
+                )) : 
+                <Badge variant="outline" className="bg-[#4AC1BD] bg-opacity-10 text-[#4AC1BD]">
+                  Matching Skills
                 </Badge>
-              ))}
+              }
             </div>
             
             <div className="flex justify-between items-center">
               <div>
-                <span className="font-medium text-[#2D3E50]">{job.salary}</span>
+                <span className="font-medium text-[#2D3E50]">{job.salary || 'Competitive'}</span>
                 <span className="text-sm text-gray-600"> / year</span>
               </div>
               <div className="flex space-x-2">

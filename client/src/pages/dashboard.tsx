@@ -250,17 +250,23 @@ export default function Dashboard() {
                         <p className="text-gray-500">No jobs available</p>
                       </div>
                     ) : (
-                      topJobs.slice(currentJobIndex, currentJobIndex + 3).map((jobMatch, index) => (
-                        <JobCard 
-                          key={jobMatch.job.id}
-                          job={jobMatch.job}
-                          matchScore={jobMatch.matchScore}
-                          matchReasons={jobMatch.matchReasons}
-                          onSwipe={handleJobSwipe}
-                          zIndex={3 - index}
-                          style={{ top: `${index * 8}px` }}
-                        />
-                      ))
+                      topJobs.slice(currentJobIndex, currentJobIndex + 3).map((jobMatch, index) => {
+                        // Make sure job exists and has an id, if not, generate a temporary one
+                        const job = jobMatch.job || {};
+                        const safeId = job.id || `temp-job-${index}-${Date.now()}`;
+                        
+                        return (
+                          <JobCard 
+                            key={safeId}
+                            job={job}
+                            matchScore={jobMatch.matchScore}
+                            matchReasons={jobMatch.matchReasons || ['Skills match', 'Location match']}
+                            onSwipe={handleJobSwipe}
+                            zIndex={3 - index}
+                            style={{ top: `${index * 8}px` }}
+                          />
+                        );
+                      })
                     )}
                   </div>
                   
