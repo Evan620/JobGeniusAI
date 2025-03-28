@@ -63,7 +63,18 @@ export default function Jobs() {
     isLoading: isLoadingDuckJobs, 
     refetch: refetchDuckJobs 
   } = useQuery({
-    queryKey: ['/api/duckduckgo/jobs', { query: duckQuery, location: duckLocation }],
+    queryKey: ['/api/duckduckgo/jobs'],
+    queryFn: async () => {
+      if (!duckQuery.trim()) {
+        throw new Error("Search query is required");
+      }
+      const params = new URLSearchParams();
+      params.append('query', duckQuery);
+      if (duckLocation.trim()) {
+        params.append('location', duckLocation);
+      }
+      return apiRequest('GET', `/api/duckduckgo/jobs?${params.toString()}`);
+    },
     enabled: false, // Don't fetch on mount
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
