@@ -12,7 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, MapPin, Briefcase, DollarSign, Star } from "lucide-react";
+import { Search, MapPin, Briefcase, DollarSign, Star, RefreshCw } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import {
   Select,
@@ -21,8 +21,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Job } from "@shared/schema";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { toast } from "@/hooks/use-toast";
 
 // Mock userId for development (would come from auth context)
@@ -34,8 +35,18 @@ export default function Jobs() {
   const [selectedJobType, setSelectedJobType] = useState<string | undefined>(undefined);
   const [selectedLocation, setSelectedLocation] = useState<string | undefined>(undefined);
   
+  // Toggle for real-time job data
+  const [useRealTimeData, setUseRealTimeData] = useState(true);
+  
+  // Query parameters for job search
+  const queryParams = {
+    external: useRealTimeData ? 'true' : 'false',
+    query: searchQuery || undefined
+  };
+  
+  // Get jobs from API with the query parameters
   const { data: jobs, isLoading } = useQuery({
-    queryKey: ['/api/jobs'],
+    queryKey: ['/api/jobs', queryParams],
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
@@ -96,7 +107,31 @@ export default function Jobs() {
       
       <main className="flex-grow">
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-          <h1 className="text-2xl font-heading font-bold text-[#2D3E50] mb-6">Job Search</h1>
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-2xl font-heading font-bold text-[#2D3E50]">Job Search</h1>
+            
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-gray-600">Use Real-Time Data</span>
+              <Switch 
+                checked={useRealTimeData} 
+                onCheckedChange={(checked) => {
+                  setUseRealTimeData(checked);
+                  // Invalidate the query to refresh the data
+                  queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
+                }}
+              />
+              <Button 
+                variant="outline" 
+                size="icon" 
+                onClick={() => {
+                  queryClient.invalidateQueries({ queryKey: ['/api/jobs'] });
+                }}
+                title="Refresh Jobs"
+              >
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
           
           {/* Search and Filters */}
           <Card className="mb-6">
