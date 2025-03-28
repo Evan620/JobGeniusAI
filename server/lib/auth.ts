@@ -1,8 +1,10 @@
 import passport from 'passport';
 import { Strategy as LinkedInStrategy } from 'passport-linkedin-oauth2';
 import { Strategy as GitHubStrategy } from 'passport-github2';
+import { Strategy as LocalStrategy } from 'passport-local';
 import { User, InsertUser } from '@shared/schema';
 import { storage } from '../storage';
+import * as bcrypt from 'bcryptjs';
 
 // Define profile interfaces for better type safety
 interface OAuthProfile {
@@ -12,6 +14,17 @@ interface OAuthProfile {
   emails?: Array<{ value: string; primary?: boolean }>;
   photos?: Array<{ value: string }>;
   _json?: any;
+}
+
+// Utility function to hash passwords
+export async function hashPassword(password: string): Promise<string> {
+  const salt = await bcrypt.genSalt(10);
+  return bcrypt.hash(password, salt);
+}
+
+// Utility function to compare passwords
+export async function comparePassword(password: string, hash: string): Promise<boolean> {
+  return bcrypt.compare(password, hash);
 }
 
 // Setup passport strategies
@@ -30,6 +43,37 @@ export function setupAuth() {
       done(error, null);
     }
   });
+  
+  // Local Strategy for username/password authentication
+  passport.use(new LocalStrategy(
+    { usernameField: 'email', passwordField: 'password' },
+    async (email, password, done) => {
+      try {
+        // Find user by email
+        const user = await storage.getUserByEmail(email);
+        
+        if (!user) {
+          return done(null, false, { message: 'Invalid email or password' });
+        }
+        
+        // Check if it's an OAuth user without a password
+        if (!user.password) {
+          return done(null, false, { message: 'Please use social login for this account' });
+        }
+        
+        // Verify password
+        const isMatch = await comparePassword(password, user.password);
+        
+        if (!isMatch) {
+          return done(null, false, { message: 'Invalid email or password' });
+        }
+        
+        return done(null, user);
+      } catch (error) {
+        return done(error);
+      }
+    }
+  ));
 
   // LinkedIn Strategy
   passport.use(new LinkedInStrategy({
