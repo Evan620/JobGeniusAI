@@ -31,7 +31,7 @@ export const useAuth = () => useContext(AuthContext);
 
 // Auth provider component
 function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { data: user, isLoading, refetch } = useQuery({
+  const { data: user, isLoading, refetch } = useQuery<User | null>({
     queryKey: ['/api/auth/user'],
     queryFn: getQueryFn({ on401: "returnNull" }),
   });
