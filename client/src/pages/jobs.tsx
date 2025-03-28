@@ -72,10 +72,10 @@ export default function Jobs() {
           job.description.toLowerCase().includes(searchQuery.toLowerCase());
         
         // Job type filter
-        const matchesJobType = !selectedJobType || job.jobType === selectedJobType;
+        const matchesJobType = !selectedJobType || selectedJobType === "all" || job.jobType === selectedJobType;
         
         // Location filter
-        const matchesLocation = !selectedLocation || job.location.includes(selectedLocation);
+        const matchesLocation = !selectedLocation || selectedLocation === "all" || job.location.includes(selectedLocation);
         
         return matchesSearch && matchesJobType && matchesLocation;
       })
@@ -123,7 +123,7 @@ export default function Jobs() {
                       <SelectValue placeholder="Job Type" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Job Types</SelectItem>
+                      <SelectItem value="all">All Job Types</SelectItem>
                       {jobTypes.map((type) => (
                         <SelectItem key={type} value={type}>
                           {type}
@@ -142,7 +142,7 @@ export default function Jobs() {
                       <SelectValue placeholder="Location" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Locations</SelectItem>
+                      <SelectItem value="all">All Locations</SelectItem>
                       {locations.map((loc) => (
                         <SelectItem key={loc} value={loc}>
                           {loc}
