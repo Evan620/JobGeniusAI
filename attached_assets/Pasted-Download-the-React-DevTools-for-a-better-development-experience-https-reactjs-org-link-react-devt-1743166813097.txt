@@ -1,0 +1,32 @@
+Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
+chunk-RPCDYKBN.js?v=60bfda4f:521 Warning: validateDOMNesting(...): <a> cannot appear as a descendant of <a>.
+    at a
+    at a
+    at https://348e8aab-4c87-4e11-b1e9-b224f5c5c49f-00-mkxp3hdlzoaq.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=60bfda4f:337:18
+    at div
+    at div
+    at div
+    at div
+    at header
+    at Header (https://348e8aab-4c87-4e11-b1e9-b224f5c5c49f-00-mkxp3hdlzoaq.janeway.replit.dev/src/components/layout/header.tsx:34:26)
+    at div
+    at Jobs (https://348e8aab-4c87-4e11-b1e9-b224f5c5c49f-00-mkxp3hdlzoaq.janeway.replit.dev/src/pages/jobs.tsx:46:22)
+    at Route (https://348e8aab-4c87-4e11-b1e9-b224f5c5c49f-00-mkxp3hdlzoaq.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=60bfda4f:323:16)
+    at Switch (https://348e8aab-4c87-4e11-b1e9-b224f5c5c49f-00-mkxp3hdlzoaq.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=60bfda4f:379:17)
+    at Router
+    at QueryClientProvider (https://348e8aab-4c87-4e11-b1e9-b224f5c5c49f-00-mkxp3hdlzoaq.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=60bfda4f:2805:3)
+    at ThemeProvider (https://348e8aab-4c87-4e11-b1e9-b224f5c5c49f-00-mkxp3hdlzoaq.janeway.replit.dev/src/components/ui/theme-provider.tsx:25:3)
+    at App
+printWarning @ chunk-RPCDYKBN.js?v=60bfda4f:521Understand this errorAI
+api/duckduckgo/jobs:1 
+            
+            
+           Failed to load resource: the server responded with a status of 400 (Bad Request)Understand this errorAI
+api/duckduckgo/jobs:1 
+            
+            
+           Failed to load resource: the server responded with a status of 400 (Bad Request)Understand this errorAI
+api/duckduckgo/jobs:1 
+            
+            
+           Failed to load resource: the server responded with a status of 400 (Bad Request)Understand this errorAI

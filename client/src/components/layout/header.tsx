@@ -37,24 +37,24 @@ export function Header({ activePath }: HeaderProps) {
           <div className="flex">
             <div className="flex-shrink-0 flex items-center">
               <Link href="/">
-                <a className="font-heading font-bold text-2xl text-[#2D3E50]">
+                <span className="font-heading font-bold text-2xl text-[#2D3E50] cursor-pointer">
                   Job<span className="text-[#FFD700]">Genius</span> AI
-                </a>
+                </span>
               </Link>
             </div>
             <nav className="hidden md:ml-6 md:flex space-x-8">
               {navItems.map((item) => (
                 <Link href={item.path} key={item.path}>
-                  <a 
+                  <span 
                     className={cn(
-                      "inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium",
+                      "inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium cursor-pointer",
                       activePath === item.path
                         ? "border-[#FFD700] text-[#2D3E50]"
                         : "border-transparent text-gray-500 hover:text-[#2D3E50] hover:border-gray-300"
                     )}
                   >
                     {item.label}
-                  </a>
+                  </span>
                 </Link>
               ))}
             </nav>
@@ -69,11 +69,11 @@ export function Header({ activePath }: HeaderProps) {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem>
-                    <Link href="/profile">
-                      <a className="w-full">Profile</a>
-                    </Link>
-                  </DropdownMenuItem>
+                  <Link href="/profile">
+                    <DropdownMenuItem className="cursor-pointer">
+                      Profile
+                    </DropdownMenuItem>
+                  </Link>
                   <DropdownMenuItem>Settings</DropdownMenuItem>
                   <DropdownMenuItem>Logout</DropdownMenuItem>
                 </DropdownMenuContent>
@@ -100,9 +100,9 @@ export function Header({ activePath }: HeaderProps) {
                 <div className="pt-2 pb-3 space-y-1">
                   {navItems.map((item) => (
                     <Link href={item.path} key={item.path}>
-                      <a 
+                      <span 
                         className={cn(
-                          "block pl-3 pr-4 py-2 border-l-4 text-base font-medium",
+                          "block pl-3 pr-4 py-2 border-l-4 text-base font-medium cursor-pointer",
                           activePath === item.path
                             ? "bg-indigo-50 border-[#FFD700] text-[#2D3E50]"
                             : "border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-[#2D3E50]"
@@ -110,7 +110,7 @@ export function Header({ activePath }: HeaderProps) {
                         onClick={() => setMobileMenuOpen(false)}
                       >
                         {item.label}
-                      </a>
+                      </span>
                     </Link>
                   ))}
                 </div>
