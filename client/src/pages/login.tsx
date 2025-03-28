@@ -44,13 +44,14 @@ export default function Login() {
     try {
       setIsLoginLoading(true);
       
-      const response = await apiRequest('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({
+      const response = await apiRequest(
+        'POST',
+        '/auth/login',
+        {
           email: loginEmail,
           password: loginPassword
-        })
-      });
+        }
+      );
       
       if (response.ok) {
         // Success - refresh auth and redirect
@@ -105,16 +106,17 @@ export default function Login() {
     try {
       setIsRegisterLoading(true);
       
-      const response = await apiRequest('/auth/register', {
-        method: 'POST',
-        body: JSON.stringify({
+      const response = await apiRequest(
+        'POST',
+        '/auth/register',
+        {
           name: registerName,
           email: registerEmail,
           username: registerUsername,
           password: registerPassword,
           confirmPassword: confirmPassword
-        })
-      });
+        }
+      );
       
       if (response.ok) {
         // Success - refresh auth and redirect
