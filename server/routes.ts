@@ -1,4 +1,4 @@
-import type { Express, Request, Response } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import passport from "passport";
 import { storage } from "./storage";
@@ -19,7 +19,7 @@ import {
 } from "./lib/openai";
 import { fetchExternalJobs, searchExternalJobs, matchJobsToUserSkills } from "./lib/jobsApi";
 import { searchDuckDuckGo } from "./lib/duckduckgo";
-import { ensureAuthenticated } from "./lib/auth";
+import { ensureAuthenticated, hashPassword } from "./lib/auth";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Create HTTP server
@@ -43,6 +43,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
       failureRedirect: "/login" 
     })
   );
+  
+  // Email registration route
+  app.post("/auth/register", async (req: Request, res: Response) => {
+    try {
+      // Validate the request
+      const userSchema = insertUserSchema
+        .extend({
+          password: z.string().min(6, "Password must be at least 6 characters"),
+          confirmPassword: z.string(),
+          username: z.string().min(3, "Username must be at least 3 characters"),
+          email: z.string().email("Invalid email address")
+        })
+        .refine((data) => data.password === data.confirmPassword, {
+          message: "Passwords do not match",
+          path: ["confirmPassword"],
+        });
+      
+      const validatedData = userSchema.parse(req.body);
+      
+      // Check if user already exists
+      const existingEmail = await storage.getUserByEmail(validatedData.email);
+      if (existingEmail) {
+        return res.status(400).json({ message: "Email already in use" });
+      }
+      
+      const existingUsername = await storage.getUserByUsername(validatedData.username);
+      if (existingUsername) {
+        return res.status(400).json({ message: "Username already in use" });
+      }
+      
+      // Hash password
+      const hashedPassword = await hashPassword(validatedData.password);
+      
+      // Create new user
+      const newUser = await storage.createUser({
+        ...validatedData,
+        password: hashedPassword,
+        profilePicture: null,
+        githubId: null,
+        githubAccessToken: null,
+        githubRefreshToken: null,
+        linkedinId: null,
+        linkedinAccessToken: null,
+        linkedinRefreshToken: null
+      });
+      
+      // Auto-login the user
+      req.login(newUser, (err) => {
+        if (err) {
+          return res.status(500).json({ message: "Error logging in after registration" });
+        }
+        return res.status(201).json({ message: "User registered successfully", user: newUser });
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Validation error", errors: error.errors });
+      }
+      return res.status(500).json({ message: "Failed to register user" });
+    }
+  });
+  
+  // Email login route
+  app.post("/auth/login", (req: Request, res: Response, next: NextFunction) => {
+    passport.authenticate("local", (err: Error, user: any, info: any) => {
+      if (err) {
+        return next(err);
+      }
+      
+      if (!user) {
+        return res.status(401).json({ message: info.message || "Authentication failed" });
+      }
+      
+      req.login(user, (err) => {
+        if (err) {
+          return next(err);
+        }
+        
+        return res.json({ message: "Login successful", user });
+      });
+    })(req, res, next);
+  });
   
   app.get("/auth/logout", (req: Request, res: Response) => {
     req.logout(function(err) {
