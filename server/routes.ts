@@ -46,6 +46,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Email registration route
   app.post("/auth/register", async (req: Request, res: Response) => {
+    console.log("Registration attempt with:", { 
+      email: req.body.email, 
+      username: req.body.username 
+    });
+    
     try {
       // Validate the request
       const userSchema = insertUserSchema
@@ -106,20 +111,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Email login route
   app.post("/auth/login", (req: Request, res: Response, next: NextFunction) => {
+    console.log("Login attempt with:", { email: req.body.email });
+    
     passport.authenticate("local", (err: Error, user: any, info: any) => {
       if (err) {
+        console.log("Login error:", err);
         return next(err);
       }
       
       if (!user) {
-        return res.status(401).json({ message: info.message || "Authentication failed" });
+        console.log("Authentication failed:", info?.message);
+        return res.status(401).json({ message: info?.message || "Authentication failed" });
       }
       
       req.login(user, (err) => {
         if (err) {
+          console.log("Session login error:", err);
           return next(err);
         }
         
+        console.log("Login successful for user:", user.email);
         return res.json({ message: "Login successful", user });
       });
     })(req, res, next);
