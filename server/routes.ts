@@ -16,6 +16,7 @@ import {
   analyzeSkillsGap,
   processAiChatMessage
 } from "./lib/openai";
+import { fetchExternalJobs, searchExternalJobs, matchJobsToUserSkills } from "./lib/jobsApi";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // API routes
@@ -130,8 +131,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Job routes
-  app.get("/api/jobs", async (_req: Request, res: Response) => {
+  app.get("/api/jobs", async (req: Request, res: Response) => {
     try {
+      // Check if we should use real-time external data
+      const useExternal = req.query.external === 'true';
+      
+      if (useExternal) {
+        // Get search query if provided
+        const query = req.query.query as string | undefined;
+        
+        if (query) {
+          const jobs = await searchExternalJobs(query);
+          return res.json(jobs);
+        } else {
+          const jobs = await fetchExternalJobs();
+          return res.json(jobs);
+        }
+      }
+      
+      // Fall back to local storage if external flag is not set
       const jobs = await storage.getJobs();
       res.json(jobs);
     } catch (error) {
@@ -162,8 +180,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const skills = await storage.getUserSkills(userId);
-      const jobs = await storage.getJobs();
       
+      // Check if we should use external data
+      const useExternal = req.query.external === 'true';
+      
+      if (useExternal) {
+        // Get skill names as strings
+        const skillNames = skills.map(skill => skill.name);
+        
+        // Match jobs to user skills using external API
+        const matchedJobs = await matchJobsToUserSkills(skillNames);
+        return res.json(matchedJobs);
+      }
+      
+      // Otherwise use local storage and OpenAI for matching
+      const jobs = await storage.getJobs();
       const matchedJobs = await matchJobsToSkills(jobs, skills);
       res.json(matchedJobs);
     } catch (error) {

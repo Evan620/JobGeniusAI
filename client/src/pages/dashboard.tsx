@@ -9,8 +9,9 @@ import { ApplicationCard } from "@/components/dashboard/application-card";
 import { AIAssistant } from "@/components/dashboard/ai-assistant";
 import { SkillsGap } from "@/components/dashboard/skills-gap";
 import { Button } from "@/components/ui/button";
-import { Search, Send, Calendar, TrendingUp, BarChart2 } from "lucide-react";
+import { Search, Send, Calendar, TrendingUp, BarChart2, RefreshCw } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { queryClient } from "@/lib/queryClient";
@@ -29,10 +30,30 @@ export default function Dashboard() {
   const [location] = useLocation();
   const [topJobs, setTopJobs] = useState<JobMatch[]>([]);
   const [currentJobIndex, setCurrentJobIndex] = useState(0);
+  
+  // Toggle for real-time job data
+  const [useRealTimeData, setUseRealTimeData] = useState(true);
 
-  // Fetch job matches
-  const { data: jobMatches, isLoading: isLoadingJobs } = useQuery({
-    queryKey: [`/api/users/${userId}/jobs/match`],
+  // Fetch job matches with real-time API option
+  const { data: jobMatches = [], isLoading: isLoadingJobs } = useQuery({
+    queryKey: [`/api/users/${userId}/jobs/match`, { external: useRealTimeData ? 'true' : 'false' }],
+    queryFn: async ({ queryKey }) => {
+      try {
+        const useExternal = queryKey[1] && typeof queryKey[1] === 'object' && (queryKey[1] as any).external === 'true';
+        const res = await fetch(`/api/users/${userId}/jobs/match${useExternal ? '?external=true' : ''}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+        if (!res.ok) return [];
+        
+        const data = await res.json();
+        return data || [];
+      } catch (error) {
+        console.error('Error fetching job matches:', error);
+        return [];
+      }
+    },
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
@@ -78,8 +99,23 @@ export default function Dashboard() {
 
   // When job matches data loads, set up the top jobs
   useEffect(() => {
-    if (jobMatches) {
-      setTopJobs(jobMatches);
+    if (jobMatches && Array.isArray(jobMatches)) {
+      // Check for the job array format from external API vs the internal format
+      if (jobMatches.length > 0 && 'matchScore' in jobMatches[0]) {
+        // Format is already correct - array of JobMatch objects
+        setTopJobs(jobMatches);
+      } else if (jobMatches.length > 0 && 'job' in jobMatches[0]) {
+        // For compatibility with different API response formats
+        setTopJobs(jobMatches as JobMatch[]);
+      } else {
+        // Transform regular jobs into job matches
+        const transformedJobs = jobMatches.map(job => ({
+          job: job,
+          matchScore: job.matchScore || 75,
+          matchReasons: ['Skill match', 'Location match', 'Experience level']
+        }));
+        setTopJobs(transformedJobs);
+      }
     }
   }, [jobMatches]);
 
@@ -177,7 +213,29 @@ export default function Dashboard() {
                 <CardHeader className="pb-2">
                   <div className="flex justify-between items-center">
                     <CardTitle className="text-lg font-semibold text-[#2D3E50]">Top Matches</CardTitle>
-                    <span className="text-sm text-gray-500">12 new today</span>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs text-gray-500">Real-time</span>
+                        <Switch 
+                          checked={useRealTimeData} 
+                          onCheckedChange={(checked) => {
+                            setUseRealTimeData(checked);
+                            queryClient.invalidateQueries({ queryKey: [`/api/users/${userId}/jobs/match`] });
+                          }}
+                          className="scale-75"
+                        />
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-7 w-7" 
+                        onClick={() => queryClient.invalidateQueries({ queryKey: [`/api/users/${userId}/jobs/match`] })}
+                        title="Refresh Job Matches"
+                      >
+                        <RefreshCw className="h-3 w-3" />
+                      </Button>
+                      <span className="text-sm text-gray-500">12 new</span>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
