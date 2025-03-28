@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
+import passport from "passport";
 import { storage } from "./storage";
 import { z } from "zod";
 import { 
@@ -18,8 +19,46 @@ import {
 } from "./lib/openai";
 import { fetchExternalJobs, searchExternalJobs, matchJobsToUserSkills } from "./lib/jobsApi";
 import { searchDuckDuckGo } from "./lib/duckduckgo";
+import { ensureAuthenticated } from "./lib/auth";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Create HTTP server
+  const server = createServer(app);
+  
+  // Auth routes
+  app.get("/auth/linkedin", passport.authenticate("linkedin"));
+  
+  app.get("/auth/linkedin/callback", 
+    passport.authenticate("linkedin", { 
+      successRedirect: "/dashboard",
+      failureRedirect: "/login" 
+    })
+  );
+  
+  app.get("/auth/github", passport.authenticate("github", { scope: ["user:email"] }));
+  
+  app.get("/auth/github/callback", 
+    passport.authenticate("github", { 
+      successRedirect: "/dashboard",
+      failureRedirect: "/login" 
+    })
+  );
+  
+  app.get("/auth/logout", (req: Request, res: Response) => {
+    req.logout(function(err) {
+      if (err) { return res.status(500).json({ message: "Error logging out" }); }
+      res.redirect("/");
+    });
+  });
+  
+  app.get("/api/auth/user", (req: Request, res: Response) => {
+    if (req.isAuthenticated()) {
+      res.json(req.user);
+    } else {
+      res.status(401).json({ message: "Not authenticated" });
+    }
+  });
+  
   // API routes
   const apiRouter = app.route("/api");
   
@@ -490,6 +529,5 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  const httpServer = createServer(app);
-  return httpServer;
+  return server;
 }

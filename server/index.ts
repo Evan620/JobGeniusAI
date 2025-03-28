@@ -1,6 +1,13 @@
 import express, { type Request, Response, NextFunction } from "express";
+import session from "express-session";
+import passport from "passport";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { setupAuth } from "./lib/auth";
+import dotenv from "dotenv";
+
+// Load environment variables from .env file
+dotenv.config();
 
 // Configure Azure OpenAI settings
 process.env.AZURE_OPENAI_BASE_URL = process.env.AZURE_OPENAI_BASE_URL || "https://models.inference.ai.azure.com";
@@ -9,6 +16,23 @@ process.env.AZURE_OPENAI_MODEL_NAME = process.env.AZURE_OPENAI_MODEL_NAME || "gp
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Set up session
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'your-secret-key',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
+}));
+
+// Initialize Passport and session
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Set up authentication strategies
+setupAuth();
 
 app.use((req, res, next) => {
   const start = Date.now();

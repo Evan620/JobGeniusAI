@@ -10,6 +10,14 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   profilePicture: text("profile_picture"),
   createdAt: timestamp("created_at").defaultNow(),
+  
+  // OAuth fields
+  githubId: text("github_id"),
+  githubAccessToken: text("github_access_token"),
+  githubRefreshToken: text("github_refresh_token"),
+  linkedinId: text("linkedin_id"),
+  linkedinAccessToken: text("linkedin_access_token"),
+  linkedinRefreshToken: text("linkedin_refresh_token"),
 });
 
 export const skills = pgTable("skills", {
