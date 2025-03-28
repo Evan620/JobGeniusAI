@@ -4,225 +4,190 @@ import { Strategy as GitHubStrategy } from 'passport-github2';
 import { Strategy as LocalStrategy } from 'passport-local';
 import { User, InsertUser } from '@shared/schema';
 import { storage } from '../storage';
-import * as bcrypt from 'bcryptjs';
+import { scrypt, randomBytes, timingSafeEqual } from 'crypto';
+import { promisify } from 'util';
+import { Request, Response, NextFunction } from 'express';
 
-// Define profile interfaces for better type safety
-interface OAuthProfile {
-  id: string;
-  displayName: string;
-  username?: string;
-  emails?: Array<{ value: string; primary?: boolean }>;
-  photos?: Array<{ value: string }>;
-  _json?: any;
-}
+const scryptAsync = promisify(scrypt);
 
-// Utility function to hash passwords
+/**
+ * Hash a password for secure storage
+ */
 export async function hashPassword(password: string): Promise<string> {
-  const salt = await bcrypt.genSalt(10);
-  return bcrypt.hash(password, salt);
+  const salt = randomBytes(16).toString('hex');
+  const buf = (await scryptAsync(password, salt, 64)) as Buffer;
+  return `${buf.toString('hex')}.${salt}`;
 }
 
-// Utility function to compare passwords
+/**
+ * Compare a plaintext password with its hashed version for authentication
+ */
 export async function comparePassword(password: string, hash: string): Promise<boolean> {
-  return bcrypt.compare(password, hash);
+  const [hashed, salt] = hash.split('.');
+  const hashedBuf = Buffer.from(hashed, 'hex');
+  const suppliedBuf = (await scryptAsync(password, salt, 64)) as Buffer;
+  return timingSafeEqual(hashedBuf, suppliedBuf);
 }
 
-// Setup passport strategies
-export function setupAuth() {
-  // Serialize user to session
-  passport.serializeUser((user: any, done) => {
-    done(null, user.id);
-  });
+/**
+ * Sets up all authentication strategies
+ */
+export function setupAuth(app: any) {
+  app.use(passport.initialize());
+  app.use(passport.session());
 
-  // Deserialize user from session
-  passport.deserializeUser(async (id: number, done) => {
+  // Local Strategy (username + password)
+  passport.use(new LocalStrategy(async (username, password, done) => {
     try {
-      const user = await storage.getUser(id);
-      done(null, user);
-    } catch (error) {
-      done(error, null);
+      console.log(`Attempting to authenticate user: ${username}`);
+      const user = await storage.getUserByUsername(username);
+      
+      if (!user) {
+        console.log(`User not found: ${username}`);
+        return done(null, false, { message: 'Incorrect username or password' });
+      }
+      
+      const isValid = await comparePassword(password, user.password);
+      
+      if (!isValid) {
+        console.log(`Invalid password for user: ${username}`);
+        return done(null, false, { message: 'Incorrect username or password' });
+      }
+      
+      console.log(`User authenticated successfully: ${username}`);
+      return done(null, user);
+    } catch (err) {
+      console.error('Authentication error:', err);
+      return done(err);
     }
-  });
-  
-  // Local Strategy for username/password authentication
-  passport.use(new LocalStrategy(
-    { usernameField: 'email', passwordField: 'password' },
-    async (email, password, done) => {
+  }));
+
+  // LinkedIn Strategy
+  if (process.env.LINKEDIN_CLIENT_ID && process.env.LINKEDIN_CLIENT_SECRET) {
+    passport.use(new LinkedInStrategy({
+      clientID: process.env.LINKEDIN_CLIENT_ID,
+      clientSecret: process.env.LINKEDIN_CLIENT_SECRET,
+      callbackURL: "/auth/linkedin/callback",
+      scope: ['r_emailaddress', 'r_liteprofile'],
+      state: true
+    }, async (accessToken, refreshToken, profile, done) => {
       try {
-        // Find user by email
-        const user = await storage.getUserByEmail(email);
+        console.log(`LinkedIn login attempt for profile ID: ${profile.id}`);
         
-        if (!user) {
-          return done(null, false, { message: 'Invalid email or password' });
-        }
+        // Check if user exists by LinkedIn ID
+        let user = await storage.getUserByEmail(profile.emails?.[0]?.value || '');
         
-        // Check if it's an OAuth user without a password
-        if (!user.password) {
-          return done(null, false, { message: 'Please use social login for this account' });
-        }
-        
-        // Verify password
-        const isMatch = await comparePassword(password, user.password);
-        
-        if (!isMatch) {
-          return done(null, false, { message: 'Invalid email or password' });
+        if (user) {
+          // Update LinkedIn tokens
+          user = await storage.updateUser(user.id, {
+            linkedinId: profile.id,
+            linkedinAccessToken: accessToken,
+            linkedinRefreshToken: refreshToken || null
+          });
+          console.log(`Updated existing user with LinkedIn data: ${user.username}`);
+        } else {
+          // Create new user from LinkedIn profile
+          const newUser: InsertUser = {
+            username: `linkedin_${profile.id}`,
+            password: await hashPassword(randomBytes(16).toString('hex')),
+            name: profile.displayName,
+            email: profile.emails?.[0]?.value || `${profile.id}@linkedin.user`,
+            profilePicture: profile.photos?.[0]?.value || null,
+            linkedinId: profile.id,
+            linkedinAccessToken: accessToken,
+            linkedinRefreshToken: refreshToken || null
+          };
+          
+          user = await storage.createUser(newUser);
+          console.log(`Created new user from LinkedIn: ${user.username}`);
         }
         
         return done(null, user);
-      } catch (error) {
-        return done(error);
+      } catch (err) {
+        console.error('LinkedIn authentication error:', err);
+        return done(err as Error);
       }
-    }
-  ));
-
-  // LinkedIn Strategy
-  passport.use(new LinkedInStrategy({
-    clientID: process.env.LINKEDIN_CLIENT_ID!,
-    clientSecret: process.env.LINKEDIN_CLIENT_SECRET!,
-    callbackURL: '/auth/linkedin/callback',
-    scope: ['r_emailaddress', 'r_liteprofile'],
-    state: true
-  }, async (
-    accessToken: string, 
-    refreshToken: string, 
-    profile: OAuthProfile, 
-    done: (error: any, user?: any) => void
-  ) => {
-    console.log('LinkedIn authentication callback received');
-    console.log('LinkedIn profile:', JSON.stringify({
-      id: profile.id,
-      displayName: profile.displayName,
-      emails: profile.emails,
-      photos: profile.photos
-    }, null, 2));
-    
-    try {
-      // Check if the profile has email
-      if (!profile.emails || profile.emails.length === 0) {
-        console.error('No email found in LinkedIn profile');
-        return done(new Error('No email found in LinkedIn profile'));
-      }
-
-      const email = profile.emails[0].value;
-      console.log('Using email:', email);
-
-      // Check if user already exists
-      let user = await storage.getUserByEmail(email);
-      
-      if (!user) {
-        console.log('Creating new user for LinkedIn login');
-        // Create new user if not found
-        const newUser: InsertUser = {
-          name: profile.displayName,
-          email: email,
-          username: `linkedin_${profile.id}`, // Using prefix to avoid conflicts
-          password: '', // Empty password for OAuth users
-          profilePicture: profile.photos?.[0]?.value || null,
-          linkedinId: profile.id,
-          linkedinAccessToken: accessToken,
-          linkedinRefreshToken: refreshToken || null,
-          githubId: null,
-          githubAccessToken: null,
-          githubRefreshToken: null
-        };
-        
-        user = await storage.createUser(newUser);
-        console.log('Created new user with ID:', user.id);
-      } else {
-        console.log('Updating existing user:', user.id);
-        // Update user with LinkedIn data
-        await storage.updateUser(user.id, {
-          linkedinId: profile.id,
-          linkedinAccessToken: accessToken,
-          linkedinRefreshToken: refreshToken || null
-        });
-      }
-      
-      return done(null, user);
-    } catch (error) {
-      console.error('LinkedIn authentication error:', error);
-      return done(error as Error);
-    }
-  }));
+    }));
+  }
 
   // GitHub Strategy
-  passport.use(new GitHubStrategy({
-    clientID: process.env.GITHUB_CLIENT_ID!,
-    clientSecret: process.env.GITHUB_CLIENT_SECRET!,
-    callbackURL: '/auth/github/callback',
-    scope: ['user:email']
-  }, async (
-    accessToken: string, 
-    refreshToken: string, 
-    profile: OAuthProfile, 
-    done: (error: any, user?: any) => void
-  ) => {
-    console.log('GitHub authentication callback received');
-    console.log('GitHub profile:', JSON.stringify({
-      id: profile.id,
-      displayName: profile.displayName,
-      username: profile.username,
-      emails: profile.emails,
-      photos: profile.photos
-    }, null, 2));
-    
+  if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
+    passport.use(new GitHubStrategy({
+      clientID: process.env.GITHUB_CLIENT_ID,
+      clientSecret: process.env.GITHUB_CLIENT_SECRET,
+      callbackURL: "/auth/github/callback",
+      scope: ['user:email']
+    }, async (accessToken, refreshToken, profile, done) => {
+      try {
+        console.log(`GitHub login attempt for profile ID: ${profile.id}`);
+        
+        // Get primary email from GitHub
+        const primaryEmail = profile.emails?.find(e => e.primary)?.value || 
+                            profile.emails?.[0]?.value;
+        
+        if (!primaryEmail) {
+          console.log('GitHub account has no accessible email');
+          return done(null, false, { message: 'No email found in GitHub profile' });
+        }
+        
+        // Check if user exists by GitHub ID or email
+        let user = await storage.getUserByEmail(primaryEmail);
+        
+        if (user) {
+          // Update GitHub tokens
+          user = await storage.updateUser(user.id, {
+            githubId: profile.id,
+            githubAccessToken: accessToken,
+            githubRefreshToken: refreshToken || null
+          });
+          console.log(`Updated existing user with GitHub data: ${user.username}`);
+        } else {
+          // Create new user from GitHub profile
+          const newUser: InsertUser = {
+            username: profile.username || `github_${profile.id}`,
+            password: await hashPassword(randomBytes(16).toString('hex')),
+            name: profile.displayName || profile.username || 'GitHub User',
+            email: primaryEmail,
+            profilePicture: profile.photos?.[0]?.value || null,
+            githubId: profile.id,
+            githubAccessToken: accessToken,
+            githubRefreshToken: refreshToken || null
+          };
+          
+          user = await storage.createUser(newUser);
+          console.log(`Created new user from GitHub: ${user.username}`);
+        }
+        
+        return done(null, user);
+      } catch (err) {
+        console.error('GitHub authentication error:', err);
+        return done(err as Error);
+      }
+    }));
+  }
+
+  // Session serialization
+  passport.serializeUser((user: User, done) => {
+    console.log(`Serializing user: ${user.id}`);
+    done(null, user.id);
+  });
+
+  passport.deserializeUser(async (id: number, done) => {
     try {
-      // Get primary email from GitHub
-      const primaryEmail = profile.emails?.[0]?.value;
-      if (!primaryEmail) {
-        console.error('No email found from GitHub profile');
-        return done(new Error('No email found from GitHub profile'));
-      }
-      
-      console.log('Using email:', primaryEmail);
-      
-      // Check if user already exists
-      let user = await storage.getUserByEmail(primaryEmail);
-      
-      if (!user) {
-        console.log('Creating new user for GitHub login');
-        // Create new user if not found
-        const username = profile.username || `github_${profile.id}`;
-        console.log('Using username:', username);
-        
-        const newUser: InsertUser = {
-          name: profile.displayName || username,
-          email: primaryEmail,
-          username: username,
-          password: '', // Empty password for OAuth users
-          profilePicture: profile.photos?.[0]?.value || null,
-          githubId: profile.id,
-          githubAccessToken: accessToken,
-          githubRefreshToken: refreshToken || null,
-          linkedinId: null,
-          linkedinAccessToken: null,
-          linkedinRefreshToken: null
-        };
-        
-        user = await storage.createUser(newUser);
-        console.log('Created new user with ID:', user.id);
-      } else {
-        console.log('Updating existing user:', user.id);
-        // Update user with GitHub data
-        await storage.updateUser(user.id, {
-          githubId: profile.id,
-          githubAccessToken: accessToken,
-          githubRefreshToken: refreshToken || null
-        });
-      }
-      
-      return done(null, user);
-    } catch (error) {
-      console.error('GitHub authentication error:', error);
-      return done(error as Error);
+      console.log(`Deserializing user: ${id}`);
+      const user = await storage.getUser(id);
+      done(null, user);
+    } catch (err) {
+      console.error('Error deserializing user:', err);
+      done(err, null);
     }
-  }));
+  });
 }
 
-// Authentication middleware
-export function ensureAuthenticated(req: any, res: any, next: any) {
+// Middleware to ensure a user is authenticated
+export function ensureAuthenticated(req: Request, res: Response, next: NextFunction) {
   if (req.isAuthenticated()) {
     return next();
   }
-  res.status(401).json({ message: 'Unauthorized' });
+  res.status(401).json({ message: 'Not authenticated' });
 }
