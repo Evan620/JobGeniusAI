@@ -17,6 +17,7 @@ import {
   processAiChatMessage
 } from "./lib/openai";
 import { fetchExternalJobs, searchExternalJobs, matchJobsToUserSkills } from "./lib/jobsApi";
+import { searchDuckDuckGo } from "./lib/duckduckgo";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // API routes
@@ -453,6 +454,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // DuckDuckGo search API
+  app.get("/api/duckduckgo/jobs", async (req: Request, res: Response) => {
+    try {
+      const query = req.query.query as string;
+      const location = req.query.location as string | undefined;
+      
+      if (!query) {
+        return res.status(400).json({ message: "Query parameter is required" });
+      }
+      
+      const jobs = await searchDuckDuckGo(query, location);
+      res.json(jobs);
+    } catch (error) {
+      res.status(500).json({ 
+        message: "Failed to search jobs on DuckDuckGo",
+        error: error.message 
+      });
+    }
+  });
+
   // AI Chat routes
   app.post("/api/ai-chat", async (req: Request, res: Response) => {
     try {

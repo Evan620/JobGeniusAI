@@ -12,7 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, MapPin, Briefcase, DollarSign, Star, RefreshCw } from "lucide-react";
+import { Search, MapPin, Briefcase, DollarSign, Star, RefreshCw, Globe, Bookmark } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import {
   Select,
@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Job } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { toast } from "@/hooks/use-toast";
@@ -34,6 +35,12 @@ export default function Jobs() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedJobType, setSelectedJobType] = useState<string | undefined>(undefined);
   const [selectedLocation, setSelectedLocation] = useState<string | undefined>(undefined);
+  const [activeTab, setActiveTab] = useState<string>("standard");
+  
+  // DuckDuckGo search state
+  const [duckQuery, setDuckQuery] = useState("");
+  const [duckLocation, setDuckLocation] = useState("");
+  const [isDuckSearching, setIsDuckSearching] = useState(false);
   
   // Toggle for real-time job data
   const [useRealTimeData, setUseRealTimeData] = useState(true);
@@ -49,7 +56,43 @@ export default function Jobs() {
     queryKey: ['/api/jobs', queryParams],
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
+  
+  // DuckDuckGo search query
+  const { 
+    data: duckJobs, 
+    isLoading: isLoadingDuckJobs, 
+    refetch: refetchDuckJobs 
+  } = useQuery({
+    queryKey: ['/api/duckduckgo/jobs', { query: duckQuery, location: duckLocation }],
+    enabled: false, // Don't fetch on mount
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
 
+  // Handle DuckDuckGo search
+  const handleDuckDuckGoSearch = async () => {
+    if (!duckQuery.trim()) {
+      toast({
+        title: "Search query required",
+        description: "Please enter a job title or keyword to search",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setIsDuckSearching(true);
+    try {
+      await refetchDuckJobs();
+      setIsDuckSearching(false);
+    } catch (error) {
+      toast({
+        title: "Search Error",
+        description: "Failed to search DuckDuckGo for jobs",
+        variant: "destructive"
+      });
+      setIsDuckSearching(false);
+    }
+  };
+  
   const handleApply = async (jobId: number) => {
     try {
       // Create application for this job
@@ -63,7 +106,7 @@ export default function Jobs() {
       toast({
         title: "Application Submitted",
         description: "Your AI-optimized application has been submitted",
-        variant: "success"
+        variant: "default"
       });
     } catch (error) {
       toast({
@@ -133,163 +176,341 @@ export default function Jobs() {
             </div>
           </div>
           
-          {/* Search and Filters */}
-          <Card className="mb-6">
-            <CardContent className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="md:col-span-2">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <Input
-                      placeholder="Search jobs, companies, or keywords"
-                      className="pl-10"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                  </div>
-                </div>
-                
-                <div>
-                  <Select
-                    value={selectedJobType}
-                    onValueChange={setSelectedJobType}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Job Type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Job Types</SelectItem>
-                      {jobTypes.map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {type}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div>
-                  <Select
-                    value={selectedLocation}
-                    onValueChange={setSelectedLocation}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Location" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Locations</SelectItem>
-                      {locations.map((loc) => (
-                        <SelectItem key={loc} value={loc}>
-                          {loc}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          {/* Job Listings */}
-          {isLoading ? (
-            <div className="flex justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#2D3E50]"></div>
-            </div>
-          ) : filteredJobs.length === 0 ? (
-            <Card>
-              <CardContent className="p-12 text-center">
-                <div className="text-4xl mb-4">🔍</div>
-                <h3 className="text-xl font-semibold text-[#2D3E50] mb-2">No jobs found</h3>
-                <p className="text-gray-600">Try adjusting your search filters</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-4">
-              {filteredJobs.map((job: Job) => (
-                <Card key={job.id} className="overflow-hidden hover:shadow-md transition-shadow">
-                  <CardContent className="p-0">
-                    <div className="flex flex-col md:flex-row">
-                      <div className="md:w-2/3 p-6">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h3 className="text-lg font-semibold text-[#2D3E50]">{job.title}</h3>
-                            <p className="text-gray-600">{job.company}</p>
-                          </div>
-                          <Badge variant="outline" className={job.jobType === 'Remote' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}>
-                            {job.jobType}
-                          </Badge>
-                        </div>
-                        
-                        <div className="mt-4 space-y-2">
-                          <div className="flex items-center text-sm text-gray-600">
-                            <MapPin className="h-4 w-4 mr-2" /> {job.location}
-                          </div>
-                          <div className="flex items-center text-sm text-gray-600">
-                            <Briefcase className="h-4 w-4 mr-2" /> {job.source || 'Direct'}
-                          </div>
-                          <div className="flex items-center text-sm text-gray-600">
-                            <DollarSign className="h-4 w-4 mr-2" /> {job.salary || 'Not disclosed'}
-                          </div>
-                        </div>
-                        
-                        <div className="mt-4">
-                          <p className="text-sm text-gray-600 line-clamp-2">{job.description}</p>
-                        </div>
-                        
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          {job.skills?.slice(0, 4).map((skill, index) => (
-                            <Badge key={index} variant="outline" className="bg-[#4AC1BD] bg-opacity-10 text-[#4AC1BD]">
-                              {skill}
-                            </Badge>
-                          ))}
-                          {job.skills && job.skills.length > 4 && (
-                            <Badge variant="outline">+{job.skills.length - 4} more</Badge>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div className="md:w-1/3 p-6 bg-gray-50 border-t md:border-t-0 md:border-l border-gray-200 flex flex-col justify-between">
-                        <div>
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm text-gray-600">Match Score</span>
-                            <span className="font-semibold text-[#2D3E50]">{job.matchScore || 0}%</span>
-                          </div>
-                          <Progress value={job.matchScore || 0} className="h-2" />
-                          
-                          <div className="mt-4">
-                            <div className="flex items-center text-sm text-[#2D3E50]">
-                              <Star className="h-4 w-4 mr-1 text-[#FFD700]" />
-                              <span>AI Match Insights:</span>
-                            </div>
-                            <ul className="mt-2 text-xs text-gray-600 space-y-1">
-                              <li>• Strong match for your technical skills</li>
-                              <li>• Aligns with your salary preferences</li>
-                              <li>• Company culture matches your values</li>
-                            </ul>
-                          </div>
-                        </div>
-                        
-                        <div className="mt-6">
-                          <Button 
-                            className="w-full bg-[#2D3E50]"
-                            onClick={() => handleApply(job.id)}
-                          >
-                            Apply with AI
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            className="w-full mt-2"
-                          >
-                            Save Job
-                          </Button>
-                        </div>
+          {/* Tabs for different search modes */}
+          <Tabs 
+            value={activeTab} 
+            onValueChange={setActiveTab}
+            className="mb-6"
+          >
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="standard" className="flex items-center gap-2">
+                <Briefcase className="h-4 w-4" />
+                Standard Search
+              </TabsTrigger>
+              <TabsTrigger value="duckduckgo" className="flex items-center gap-2">
+                <Globe className="h-4 w-4" />
+                Web Search (DuckDuckGo)
+              </TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="standard" className="mt-4">
+              {/* Standard Search UI */}
+              <Card className="mb-6">
+                <CardContent className="p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="md:col-span-2">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                        <Input
+                          placeholder="Search jobs, companies, or keywords"
+                          className="pl-10"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                        />
                       </div>
                     </div>
+                    
+                    <div>
+                      <Select
+                        value={selectedJobType}
+                        onValueChange={setSelectedJobType}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Job Type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Job Types</SelectItem>
+                          {jobTypes.map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {type}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div>
+                      <Select
+                        value={selectedLocation}
+                        onValueChange={setSelectedLocation}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Location" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Locations</SelectItem>
+                          {locations.map((loc) => (
+                            <SelectItem key={loc} value={loc}>
+                              {loc}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              {/* Standard Jobs Listings */}
+              {isLoading ? (
+                <div className="flex justify-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#2D3E50]"></div>
+                </div>
+              ) : filteredJobs.length === 0 ? (
+                <Card>
+                  <CardContent className="p-12 text-center">
+                    <div className="text-4xl mb-4">🔍</div>
+                    <h3 className="text-xl font-semibold text-[#2D3E50] mb-2">No jobs found</h3>
+                    <p className="text-gray-600">Try adjusting your search filters</p>
                   </CardContent>
                 </Card>
-              ))}
-            </div>
-          )}
+              ) : (
+                <div className="space-y-4">
+                  {filteredJobs.map((job: Job) => (
+                    <Card key={job.id} className="overflow-hidden hover:shadow-md transition-shadow">
+                      <CardContent className="p-0">
+                        <div className="flex flex-col md:flex-row">
+                          <div className="md:w-2/3 p-6">
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <h3 className="text-lg font-semibold text-[#2D3E50]">{job.title}</h3>
+                                <p className="text-gray-600">{job.company}</p>
+                              </div>
+                              <Badge variant="outline" className={job.jobType === 'Remote' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}>
+                                {job.jobType}
+                              </Badge>
+                            </div>
+                            
+                            <div className="mt-4 space-y-2">
+                              <div className="flex items-center text-sm text-gray-600">
+                                <MapPin className="h-4 w-4 mr-2" /> {job.location}
+                              </div>
+                              <div className="flex items-center text-sm text-gray-600">
+                                <Briefcase className="h-4 w-4 mr-2" /> {job.source || 'Direct'}
+                              </div>
+                              <div className="flex items-center text-sm text-gray-600">
+                                <DollarSign className="h-4 w-4 mr-2" /> {job.salary || 'Not disclosed'}
+                              </div>
+                            </div>
+                            
+                            <div className="mt-4">
+                              <p className="text-sm text-gray-600 line-clamp-2">{job.description}</p>
+                            </div>
+                            
+                            <div className="mt-4 flex flex-wrap gap-2">
+                              {job.skills?.slice(0, 4).map((skill, index) => (
+                                <Badge key={index} variant="outline" className="bg-[#4AC1BD] bg-opacity-10 text-[#4AC1BD]">
+                                  {skill}
+                                </Badge>
+                              ))}
+                              {job.skills && job.skills.length > 4 && (
+                                <Badge variant="outline">+{job.skills.length - 4} more</Badge>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div className="md:w-1/3 p-6 bg-gray-50 border-t md:border-t-0 md:border-l border-gray-200 flex flex-col justify-between">
+                            <div>
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm text-gray-600">Match Score</span>
+                                <span className="font-semibold text-[#2D3E50]">{job.matchScore || 0}%</span>
+                              </div>
+                              <Progress value={job.matchScore || 0} className="h-2" />
+                              
+                              <div className="mt-4">
+                                <div className="flex items-center text-sm text-[#2D3E50]">
+                                  <Star className="h-4 w-4 mr-1 text-[#FFD700]" />
+                                  <span>AI Match Insights:</span>
+                                </div>
+                                <ul className="mt-2 text-xs text-gray-600 space-y-1">
+                                  <li>• Strong match for your technical skills</li>
+                                  <li>• Aligns with your salary preferences</li>
+                                  <li>• Company culture matches your values</li>
+                                </ul>
+                              </div>
+                            </div>
+                            
+                            <div className="mt-6">
+                              <Button 
+                                className="w-full bg-[#2D3E50]"
+                                onClick={() => handleApply(job.id)}
+                              >
+                                Apply with AI
+                              </Button>
+                              <Button 
+                                variant="outline" 
+                                className="w-full mt-2"
+                              >
+                                <Bookmark className="h-4 w-4 mr-2" />
+                                Save Job
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+            
+            <TabsContent value="duckduckgo" className="mt-4">
+              {/* DuckDuckGo Search UI */}
+              <Card className="mb-6">
+                <CardContent className="p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="md:col-span-2">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                        <Input
+                          placeholder="Search job titles across the web"
+                          className="pl-10"
+                          value={duckQuery}
+                          onChange={(e) => setDuckQuery(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <Input
+                        placeholder="Location (optional)"
+                        value={duckLocation}
+                        onChange={(e) => setDuckLocation(e.target.value)}
+                      />
+                    </div>
+                    
+                    <div>
+                      <Button 
+                        className="w-full bg-[#2D3E50]"
+                        onClick={handleDuckDuckGoSearch}
+                        disabled={isDuckSearching}
+                      >
+                        {isDuckSearching ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                            Searching...
+                          </>
+                        ) : (
+                          <>
+                            <Globe className="h-4 w-4 mr-2" />
+                            Search Jobs
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              {/* DuckDuckGo Job Listings */}
+              {isLoadingDuckJobs ? (
+                <div className="flex justify-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#2D3E50]"></div>
+                </div>
+              ) : duckJobs && duckJobs.length > 0 ? (
+                <div className="space-y-4">
+                  {duckJobs.map((job: Job) => (
+                    <Card key={job.id} className="overflow-hidden hover:shadow-md transition-shadow">
+                      <CardContent className="p-0">
+                        <div className="flex flex-col md:flex-row">
+                          <div className="md:w-2/3 p-6">
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <h3 className="text-lg font-semibold text-[#2D3E50]">{job.title}</h3>
+                                <p className="text-gray-600">{job.company}</p>
+                              </div>
+                              <Badge variant="outline" className="bg-yellow-100 text-yellow-800">
+                                Web Search
+                              </Badge>
+                            </div>
+                            
+                            <div className="mt-4 space-y-2">
+                              <div className="flex items-center text-sm text-gray-600">
+                                <MapPin className="h-4 w-4 mr-2" /> {job.location || 'Location not specified'}
+                              </div>
+                              <div className="flex items-center text-sm text-gray-600">
+                                <Globe className="h-4 w-4 mr-2" /> {job.source || 'DuckDuckGo'}
+                              </div>
+                            </div>
+                            
+                            <div className="mt-4">
+                              <p className="text-sm text-gray-600 line-clamp-3">{job.description}</p>
+                            </div>
+                            
+                            {job.link && (
+                              <div className="mt-4">
+                                <a 
+                                  href={job.link} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="text-sm text-blue-600 hover:underline flex items-center"
+                                >
+                                  <Globe className="h-3 w-3 mr-1" /> View original listing
+                                </a>
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div className="md:w-1/3 p-6 bg-gray-50 border-t md:border-t-0 md:border-l border-gray-200 flex flex-col justify-between">
+                            <div>
+                              <div className="flex items-center text-sm text-[#2D3E50] mb-4">
+                                <Star className="h-4 w-4 mr-1 text-[#FFD700]" />
+                                <span>Found via DuckDuckGo search</span>
+                              </div>
+                              <p className="text-xs text-gray-600">
+                                This job was discovered through a web search. Apply directly through the employer's website.
+                              </p>
+                            </div>
+                            
+                            <div className="mt-6">
+                              {job.link ? (
+                                <Button 
+                                  className="w-full bg-[#2D3E50]"
+                                  onClick={() => window.open(job.link, '_blank')}
+                                >
+                                  Apply on Website
+                                </Button>
+                              ) : (
+                                <Button 
+                                  className="w-full bg-[#2D3E50]"
+                                  disabled
+                                >
+                                  No Application Link
+                                </Button>
+                              )}
+                              <Button 
+                                variant="outline" 
+                                className="w-full mt-2"
+                                onClick={() => handleApply(job.id)}
+                              >
+                                Save to My Applications
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : duckJobs && duckJobs.length === 0 ? (
+                <Card>
+                  <CardContent className="p-12 text-center">
+                    <div className="text-4xl mb-4">🔍</div>
+                    <h3 className="text-xl font-semibold text-[#2D3E50] mb-2">No jobs found</h3>
+                    <p className="text-gray-600">Try a different search query or location</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="p-12 text-center">
+                    <div className="text-4xl mb-4">🌐</div>
+                    <h3 className="text-xl font-semibold text-[#2D3E50] mb-2">Search the web for jobs</h3>
+                    <p className="text-gray-600">Enter a job title and optional location, then click Search</p>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+          </Tabs>
         </div>
       </main>
       
