@@ -175,7 +175,18 @@ export class MemStorage implements IStorage {
 
   async createUser(user: InsertUser): Promise<User> {
     const id = this.userIdCounter++;
-    const newUser: User = { ...user, id, createdAt: new Date() };
+    const newUser: User = { 
+      ...user, 
+      id, 
+      createdAt: new Date(),
+      profilePicture: user.profilePicture ?? null,
+      githubId: user.githubId ?? null,
+      githubAccessToken: user.githubAccessToken ?? null,
+      githubRefreshToken: user.githubRefreshToken ?? null,
+      linkedinId: user.linkedinId ?? null,
+      linkedinAccessToken: user.linkedinAccessToken ?? null,
+      linkedinRefreshToken: user.linkedinRefreshToken ?? null
+    };
     this.users.set(id, newUser);
     return newUser;
   }
@@ -196,7 +207,11 @@ export class MemStorage implements IStorage {
 
   async createSkill(skill: InsertSkill): Promise<Skill> {
     const id = this.skillIdCounter++;
-    const newSkill: Skill = { ...skill, id };
+    const newSkill: Skill = { 
+      ...skill, 
+      id,
+      level: skill.level ?? null 
+    };
     this.skills.set(id, newSkill);
     return newSkill;
   }
@@ -225,7 +240,31 @@ export class MemStorage implements IStorage {
 
   async createJob(job: InsertJob): Promise<Job> {
     const id = this.jobIdCounter++;
-    const newJob: Job = { ...job, id };
+    
+    // Convert skills to proper string array if needed
+    let processedSkills: string[] | null = null;
+    if (job.skills) {
+      if (Array.isArray(job.skills)) {
+        processedSkills = job.skills.map(s => String(s));
+      } else {
+        processedSkills = [];
+      }
+    }
+    
+    const newJob: Job = { 
+      ...job, 
+      id,
+      company: job.company ?? '',
+      title: job.title ?? '',
+      description: job.description ?? '',
+      location: job.location ?? '',
+      salary: job.salary ?? null,
+      link: job.link ?? null,
+      jobType: job.jobType ?? null,
+      source: job.source ?? null,
+      matchScore: job.matchScore ?? null,
+      skills: processedSkills
+    };
     this.jobs.set(id, newJob);
     return newJob;
   }
@@ -256,7 +295,11 @@ export class MemStorage implements IStorage {
     const newApplication: Application = { 
       ...application, 
       id, 
-      appliedAt: new Date()
+      appliedAt: new Date(),
+      status: application.status ?? 'pending',
+      interviewDate: application.interviewDate ?? null,
+      notes: application.notes ?? null,
+      aiOptimized: application.aiOptimized ?? null
     };
     this.applications.set(id, newApplication);
     return newApplication;
@@ -278,7 +321,14 @@ export class MemStorage implements IStorage {
 
   async createAiSettings(settings: InsertAiSettings): Promise<AiSettings> {
     const id = this.aiSettingsIdCounter++;
-    const newSettings: AiSettings = { ...settings, id };
+    const newSettings: AiSettings = { 
+      ...settings, 
+      id,
+      autoApply: settings.autoApply ?? null,
+      matchThreshold: settings.matchThreshold ?? null,
+      customizeResumes: settings.customizeResumes ?? null,
+      dailyAlerts: settings.dailyAlerts ?? null
+    };
     this.aiSettings.set(id, newSettings);
     return newSettings;
   }
@@ -305,11 +355,17 @@ export class MemStorage implements IStorage {
 
   async createResume(resume: InsertResume): Promise<Resume> {
     const id = this.resumeIdCounter++;
-    const newResume: Resume = { ...resume, id };
+    const newResume: Resume = { 
+      ...resume, 
+      id,
+      isDefault: resume.isDefault ?? null
+    };
     
     // If this is set as default, unset any existing defaults
     if (newResume.isDefault) {
-      for (const existingResume of this.resumes.values()) {
+      const existingResumes = Array.from(this.resumes.values());
+      for (let i = 0; i < existingResumes.length; i++) {
+        const existingResume = existingResumes[i];
         if (existingResume.userId === resume.userId && existingResume.isDefault) {
           existingResume.isDefault = false;
           this.resumes.set(existingResume.id, existingResume);
@@ -329,7 +385,9 @@ export class MemStorage implements IStorage {
     
     // If this is being set as default, unset any existing defaults
     if (resumeData.isDefault) {
-      for (const existingResume of this.resumes.values()) {
+      const existingResumes = Array.from(this.resumes.values());
+      for (let i = 0; i < existingResumes.length; i++) {
+        const existingResume = existingResumes[i];
         if (existingResume.userId === resume.userId && 
             existingResume.id !== id && 
             existingResume.isDefault) {
