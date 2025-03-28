@@ -88,21 +88,34 @@ export function setupAuth() {
     profile: OAuthProfile, 
     done: (error: any, user?: any) => void
   ) => {
+    console.log('LinkedIn authentication callback received');
+    console.log('LinkedIn profile:', JSON.stringify({
+      id: profile.id,
+      displayName: profile.displayName,
+      emails: profile.emails,
+      photos: profile.photos
+    }, null, 2));
+    
     try {
       // Check if the profile has email
       if (!profile.emails || profile.emails.length === 0) {
+        console.error('No email found in LinkedIn profile');
         return done(new Error('No email found in LinkedIn profile'));
       }
 
+      const email = profile.emails[0].value;
+      console.log('Using email:', email);
+
       // Check if user already exists
-      let user = await storage.getUserByEmail(profile.emails[0].value);
+      let user = await storage.getUserByEmail(email);
       
       if (!user) {
+        console.log('Creating new user for LinkedIn login');
         // Create new user if not found
         const newUser: InsertUser = {
           name: profile.displayName,
-          email: profile.emails[0].value,
-          username: profile.id,
+          email: email,
+          username: `linkedin_${profile.id}`, // Using prefix to avoid conflicts
           password: '', // Empty password for OAuth users
           profilePicture: profile.photos?.[0]?.value || null,
           linkedinId: profile.id,
@@ -114,7 +127,9 @@ export function setupAuth() {
         };
         
         user = await storage.createUser(newUser);
+        console.log('Created new user with ID:', user.id);
       } else {
+        console.log('Updating existing user:', user.id);
         // Update user with LinkedIn data
         await storage.updateUser(user.id, {
           linkedinId: profile.id,
@@ -125,6 +140,7 @@ export function setupAuth() {
       
       return done(null, user);
     } catch (error) {
+      console.error('LinkedIn authentication error:', error);
       return done(error as Error);
     }
   }));
@@ -141,22 +157,38 @@ export function setupAuth() {
     profile: OAuthProfile, 
     done: (error: any, user?: any) => void
   ) => {
+    console.log('GitHub authentication callback received');
+    console.log('GitHub profile:', JSON.stringify({
+      id: profile.id,
+      displayName: profile.displayName,
+      username: profile.username,
+      emails: profile.emails,
+      photos: profile.photos
+    }, null, 2));
+    
     try {
       // Get primary email from GitHub
       const primaryEmail = profile.emails?.[0]?.value;
       if (!primaryEmail) {
+        console.error('No email found from GitHub profile');
         return done(new Error('No email found from GitHub profile'));
       }
+      
+      console.log('Using email:', primaryEmail);
       
       // Check if user already exists
       let user = await storage.getUserByEmail(primaryEmail);
       
       if (!user) {
+        console.log('Creating new user for GitHub login');
         // Create new user if not found
+        const username = profile.username || `github_${profile.id}`;
+        console.log('Using username:', username);
+        
         const newUser: InsertUser = {
-          name: profile.displayName || profile.username!,
+          name: profile.displayName || username,
           email: primaryEmail,
-          username: profile.username!,
+          username: username,
           password: '', // Empty password for OAuth users
           profilePicture: profile.photos?.[0]?.value || null,
           githubId: profile.id,
@@ -168,7 +200,9 @@ export function setupAuth() {
         };
         
         user = await storage.createUser(newUser);
+        console.log('Created new user with ID:', user.id);
       } else {
+        console.log('Updating existing user:', user.id);
         // Update user with GitHub data
         await storage.updateUser(user.id, {
           githubId: profile.id,
@@ -179,6 +213,7 @@ export function setupAuth() {
       
       return done(null, user);
     } catch (error) {
+      console.error('GitHub authentication error:', error);
       return done(error as Error);
     }
   }));

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,11 +9,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { useAuth } from '@/App';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function Login() {
   const [_, setLocation] = useLocation();
   const { toast } = useToast();
   const { refetchUser } = useAuth();
+  
+  // OAuth error state
+  const [oauthError, setOauthError] = useState<string | null>(null);
   
   // Login form state
   const [loginEmail, setLoginEmail] = useState('');
@@ -27,6 +31,37 @@ export default function Login() {
   const [registerPassword, setRegisterPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isRegisterLoading, setIsRegisterLoading] = useState(false);
+  
+  // Check for OAuth errors in URL on component mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const error = params.get('error');
+    
+    if (error) {
+      let message = 'Authentication failed. Please try again.';
+      
+      switch (error) {
+        case 'linkedin_auth_failed':
+          message = 'LinkedIn authentication failed. Please try again.';
+          break;
+        case 'linkedin_session_failed':
+          message = 'Failed to create session after LinkedIn login.';
+          break;
+        case 'github_auth_failed':
+          message = 'GitHub authentication failed. Please try again.';
+          break;
+        case 'github_session_failed':
+          message = 'Failed to create session after GitHub login.';
+          break;
+      }
+      
+      setOauthError(message);
+      
+      // Remove the error parameter from the URL
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, []);
   
   // Handle login submission
   const handleLogin = async (e: React.FormEvent) => {
@@ -155,6 +190,12 @@ export default function Login() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {oauthError && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertDescription>{oauthError}</AlertDescription>
+            </Alert>
+          )}
+          
           <Tabs defaultValue="login" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="login">Login</TabsTrigger>
@@ -272,23 +313,27 @@ export default function Login() {
           </div>
           
           <div className="space-y-2">
-            <Button 
-              variant="outline" 
-              className="w-full flex items-center justify-center gap-2 h-12"
-              onClick={() => window.location.href = '/auth/linkedin'}
-            >
-              <FaLinkedin className="w-5 h-5 text-blue-600" />
-              <span>Sign in with LinkedIn</span>
-            </Button>
+            <a href="/auth/linkedin" className="no-underline">
+              <Button 
+                variant="outline" 
+                className="w-full flex items-center justify-center gap-2 h-12"
+                type="button"
+              >
+                <FaLinkedin className="w-5 h-5 text-blue-600" />
+                <span>Sign in with LinkedIn</span>
+              </Button>
+            </a>
             
-            <Button 
-              variant="outline" 
-              className="w-full flex items-center justify-center gap-2 h-12"
-              onClick={() => window.location.href = '/auth/github'}
-            >
-              <FaGithub className="w-5 h-5" />
-              <span>Sign in with GitHub</span>
-            </Button>
+            <a href="/auth/github" className="no-underline">
+              <Button 
+                variant="outline" 
+                className="w-full flex items-center justify-center gap-2 h-12"
+                type="button"
+              >
+                <FaGithub className="w-5 h-5" />
+                <span>Sign in with GitHub</span>
+              </Button>
+            </a>
           </div>
           
           <Button 

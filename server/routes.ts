@@ -26,23 +26,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const server = createServer(app);
   
   // Auth routes
-  app.get("/auth/linkedin", passport.authenticate("linkedin"));
+  app.get("/auth/linkedin", (req, res, next) => {
+    console.log("LinkedIn authentication initiated");
+    passport.authenticate("linkedin")(req, res, next);
+  });
   
-  app.get("/auth/linkedin/callback", 
-    passport.authenticate("linkedin", { 
-      successRedirect: "/dashboard",
-      failureRedirect: "/login" 
-    })
-  );
+  app.get("/auth/linkedin/callback", (req, res, next) => {
+    console.log("LinkedIn callback received");
+    passport.authenticate("linkedin", (err: any, user: any, info: any) => {
+      if (err) {
+        console.error("LinkedIn authentication error:", err);
+        return res.redirect('/login?error=linkedin_auth_failed');
+      }
+      
+      if (!user) {
+        console.error("LinkedIn authentication failed:", info?.message || "Unknown reason");
+        return res.redirect('/login?error=linkedin_auth_failed');
+      }
+      
+      req.login(user, (err) => {
+        if (err) {
+          console.error("LinkedIn session error:", err);
+          return res.redirect('/login?error=linkedin_session_failed');
+        }
+        
+        console.log("LinkedIn authentication successful for user:", user.id);
+        return res.redirect('/dashboard');
+      });
+    })(req, res, next);
+  });
   
-  app.get("/auth/github", passport.authenticate("github", { scope: ["user:email"] }));
+  app.get("/auth/github", (req, res, next) => {
+    console.log("GitHub authentication initiated");
+    passport.authenticate("github", { scope: ["user:email"] })(req, res, next);
+  });
   
-  app.get("/auth/github/callback", 
-    passport.authenticate("github", { 
-      successRedirect: "/dashboard",
-      failureRedirect: "/login" 
-    })
-  );
+  app.get("/auth/github/callback", (req, res, next) => {
+    console.log("GitHub callback received");
+    passport.authenticate("github", (err: any, user: any, info: any) => {
+      if (err) {
+        console.error("GitHub authentication error:", err);
+        return res.redirect('/login?error=github_auth_failed');
+      }
+      
+      if (!user) {
+        console.error("GitHub authentication failed:", info?.message || "Unknown reason");
+        return res.redirect('/login?error=github_auth_failed');
+      }
+      
+      req.login(user, (err) => {
+        if (err) {
+          console.error("GitHub session error:", err);
+          return res.redirect('/login?error=github_session_failed');
+        }
+        
+        console.log("GitHub authentication successful for user:", user.id);
+        return res.redirect('/dashboard');
+      });
+    })(req, res, next);
+  });
   
   // Email registration route
   app.post("/auth/register", async (req: Request, res: Response) => {
@@ -563,7 +605,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const optimization = await optimizeResumeForJob(resume.content, job, skills);
       res.json(optimization);
-    } catch (error) {
+    } catch (error: unknown) {
+      console.error("Resume optimization error:", error);
       res.status(500).json({ message: "Failed to optimize resume" });
     }
   });
@@ -597,10 +640,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const jobs = await searchDuckDuckGo(query, location);
       res.json(jobs);
-    } catch (error) {
+    } catch (error: unknown) {
+      console.error("DuckDuckGo search error:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       res.status(500).json({ 
         message: "Failed to search jobs on DuckDuckGo",
-        error: error.message 
+        error: errorMessage
       });
     }
   });
@@ -616,7 +661,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const response = await processAiChatMessage(message, previousMessages || []);
       res.json({ response });
-    } catch (error) {
+    } catch (error: unknown) {
+      console.error("AI chat processing error:", error);
       res.status(500).json({ message: "Failed to process chat message" });
     }
   });
